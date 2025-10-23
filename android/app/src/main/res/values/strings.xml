@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Hitcher</string>
+    <string name="vector_count">Available vectors: %1$d</string>
+</resources>

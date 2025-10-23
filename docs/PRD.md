@@ -1,7 +1,7 @@
 # Hitcher Vector-Sharing Platform — Product Requirements Document
 
 ## 1. Executive Summary
-Hitcher is a crowdsourced, location-aware platform that enables users to efficiently share travel vectors—periods during which two or more users travel in the same direction and can ride together. The product removes friction from ad-hoc ridesharing by pairing "drivers" and "riders" (both considered users) who explicitly opt into sharing a journey, while providing transparency and trust through feedback profiles and verifiable identity data. The initial release targets urban and suburban commuters seeking flexible, cost-effective, and sustainable transportation alternatives.
+Hitcher is a crowdsourced, location-aware platform that enables users to efficiently share travel vectors—periods during which two or more users travel in the same direction and can ride together. The product removes friction from ad-hoc ridesharing by pairing "drivers" and "riders" (both considered users) who explicitly opt into sharing a journey, while providing transparency and trust through feedback profiles and verifiable identity data. The initial release targets urban and suburban commuters seeking flexible, cost-effective, and sustainable transportation alternatives. This PRD now also tracks the implementation blueprint guiding the first production build, covering backend services, the Android client, and supporting infrastructure.
 
 ## 2. Goals & Non-Goals
 ### 2.1 Goals
@@ -9,6 +9,7 @@ Hitcher is a crowdsourced, location-aware platform that enables users to efficie
 - Provide reliable trust and safety signals through a unified reputation profile that can ingest external marketplace feedback (e.g., Facebook Marketplace, eBay) where legally permissible.
 - Optimize route-matching to maximize vector efficiency (minimize detours, maximize shared distance/time).
 - Ensure compliance with relevant transportation, data privacy, and platform liability regulations in pilot regions.
+- Deliver an MVP composed of a production-ready backend service, a native Android client, and shared design system assets that enable iterative feature expansion.
 
 ### 2.2 Non-Goals (Initial Release)
 - Processing in-app payments or escrow between users (allow expense splitting suggestions only).
@@ -27,6 +28,11 @@ Hitcher is a crowdsourced, location-aware platform that enables users to efficie
 - Riders browse/search nearby or future vectors and request to "hook up" for overlapping segments.
 - Both parties review each other’s trust profiles, negotiate optional cost-sharing, confirm match, and receive navigation guidance.
 - Post-ride, participants rate each other and submit feedback to evolve trust metrics.
+- Android MVP scope:
+  - Core tabs: **Explore** (browse vectors), **My Trips** (upcoming/past rides), **Messages**, **Profile**.
+  - Map view showing drivers, vector cards, and call-to-action for hook-up requests.
+  - Background services for location updates (drivers) and push notifications.
+  - Accessibility target: WCAG AA contrast, TalkBack labels on interactive elements.
 
 ## 5. User Stories
 ### Driver
@@ -68,6 +74,7 @@ Hitcher is a crowdsourced, location-aware platform that enables users to efficie
   - Vector similarity score combining direction alignment, overlap duration, and detour cost.
   - Real-time updates for live trips, recalculating matches as drivers move.
 - Results list with ranked matches, estimated pickup/drop-off, shared time, and trust indicators.
+- MVP constraint: initial implementation will simulate matching with heuristic scoring while data collection begins for full predictive model.
 
 ### 6.4 Hook-Up Confirmation Flow
 - Riders send hook-up requests specifying pickup/drop-off suggestions and optional notes.
@@ -108,6 +115,8 @@ Hitcher is a crowdsourced, location-aware platform that enables users to efficie
 - **Performance:** Location updates at least every 5 seconds during active trips; push notifications delivered within 10 seconds of triggers.
 - **Security & Privacy:** GDPR/CCPA compliance, data minimization, encrypted data at rest/in transit, role-based admin access, audit logging.
 - **Internationalization:** Prepare for multi-language support (English-first, others via localization pipeline).
+- **Documentation:** Publish API reference, Android client handoff notes, and ops runbooks alongside each release.
+- **Testing:** Maintain automated unit, integration, and UI test coverage thresholds defined per component.
 
 ## 8. Data & Integrations
 - **Mapping & Routing:** Integrate with providers (Mapbox, Google Maps, HERE) for routing, traffic, and geocoding.
@@ -116,27 +125,71 @@ Hitcher is a crowdsourced, location-aware platform that enables users to efficie
 - **Messaging & Notifications:** Firebase Cloud Messaging, Apple Push Notification service, SMS aggregator (Twilio).
 - **Analytics:** Data warehouse (Snowflake/BigQuery) fed via ETL from operational DB; use Segment or custom event pipeline.
 
-## 9. Legal, Compliance, & Risk
+## 8.1 Product Scope for MVP (Phase 0)
+- Identity and profile creation with manual admin approval for verification completion.
+- Vector publishing for drivers and ride intent creation for riders with heuristic-based matching results.
+- Hook-up confirmation workflow with in-app chat MVP (text only) and push notification stubs.
+- Ratings submission and moderation queue to resolve disputes.
+- Foundational analytics counters covering daily active users, vectors, and hook-up conversion rate.
+
+## 9. Technical Architecture Overview
+### 9.1 System Components
+- **Mobile Client (Android/Kotlin):** Native app managing onboarding, vector workflows, chat, and background location services for drivers.
+- **Backend Service (FastAPI/Python):** RESTful API handling authentication (MVP token-based), vector lifecycle, matching heuristics, chat message relay, and analytics ingestion.
+- **Database:** PostgreSQL with PostGIS extension (planned) accessed via SQLAlchemy models and Alembic migrations.
+- **Real-Time Messaging:** WebSocket endpoints for chat and live location streaming targeted for Phase 1; Firebase Cloud Messaging provides push delivery in MVP.
+- **External Services:** Mapbox APIs for maps/geocoding, Persona for identity verification, Twilio for SMS fallbacks.
+
+### 9.2 Data Flow
+1. Users authenticate via email/OTP; backend issues JWT access/refresh tokens.
+2. Drivers submit vectors; backend persists route geometry and calculates compatibility heuristics.
+3. Riders request matches; backend returns ranked vectors and manages hook-up confirmations.
+4. Chat and notification events propagate through messaging services; trip completion triggers feedback tasks.
+
+### 9.3 Deployment Strategy
+- Backend deployed as containerized service on managed Kubernetes (e.g., GKE/EKS) with GitHub Actions CI/CD, automated testing, and infrastructure-as-code (Terraform) for environments.
+- Android client distributed through Firebase App Distribution for internal testing prior to Play Store beta rollout.
+- Observability includes OpenTelemetry traces, Prometheus metrics, and centralized structured logging (ELK stack).
+
+### 9.4 Security & Compliance Enhancements
+- Secrets managed with cloud secret manager, rotated quarterly and restricted via IAM policies.
+- Privacy impact assessments executed before integrating third-party reputation data sources.
+- Data retention policy: anonymize personal trip/location data after 180 days while retaining aggregated insights.
+
+## 10. Design & Research Plan
+- Conduct moderated usability testing on Explore and Hook-Up flows with diverse participants.
+- Implement design tokens shared between Android and future web clients to ensure consistency.
+- Document motion/animation guidelines emphasizing predictability and confirmation states to reinforce trust.
+- Maintain accessibility review checklist per release including TalkBack/VoiceOver audits.
+
+## 11. Delivery Roadmap Snapshot
+- **Sprint 1:** Backend scaffolding, authentication MVP, Android project setup with onboarding and Explore placeholders.
+- **Sprint 2:** Vector creation/listing endpoints and Android UI with local persistence for drafts.
+- **Sprint 3:** Matching heuristic service, push notification integration (stub), and trip state machine implementation.
+- **Sprint 4:** Chat MVP, analytics instrumentation, and beta readiness checklist execution.
+- **Beta Exit Criteria:** 1k completed trips, <5% crash rate, positive qualitative feedback on trust and safety features.
+
+## 12. Legal, Compliance, & Risk
 - Review transportation regulations for ridesharing/carpooling in target geographies (insurance, liability, occupancy limits).
 - Develop terms of service clarifying that Hitcher facilitates peer connections, not commercial transport.
 - Implement consent flows for data sharing and background checks.
 - Prepare incident response playbook covering law enforcement requests, data breaches, and safety escalations.
 - Mitigate external data ingestion risks (data accuracy, revocation handling, rate limits).
 
-## 10. Launch Plan
+## 13. Launch Plan
 - **Phase 0 (3 months):** Internal alpha with employees/friends, focus on matching algorithm accuracy, identity verification, and UI feedback.
 - **Phase 1 (6 months):** Closed beta in one metro area (e.g., Austin), 500 users; monitor supply-demand balance, refine reputation score UX.
 - **Phase 2 (9–12 months):** Expand to additional cities, introduce item rider workflows, optimize retention loops.
 - **Success Metrics:** 40% hook-up conversion rate, NPS > 45, average rating ≥ 4.6, incident rate < 0.5% of completed trips.
 
-## 11. Open Questions & Future Enhancements
+## 14. Open Questions & Future Enhancements
 - Monetization model: subscription vs. per-trip fee vs. employer partnerships.
 - Insurance coverage partnerships for drivers during shared vectors.
 - Dynamic pricing guidance based on gas prices and demand.
 - Integration with public transit schedules for multi-modal planning.
 - API for third-party logistics partners to request vectors for item delivery.
 
-## 12. Stakeholders
+## 15. Stakeholders
 - Product: PM, UX Designer, Research Lead.
 - Engineering: Mobile leads (iOS, Android), Backend lead, Data scientist (matching & trust models).
 - Operations: Trust & Safety manager, Customer Support, Legal counsel.
