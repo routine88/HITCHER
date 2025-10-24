@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+.env
+.venv/
+
+# Android/Gradle
+android/.gradle/
+android/.idea/
+android/local.properties
+android/app/build/
+android/build/
+
+# Misc
+.DS_Store
