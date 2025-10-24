@@ -15,6 +15,13 @@ This module contains the native Android application for the Hitcher vector-shari
 3. Sync Gradle and allow dependencies to download.
 4. Run the `app` configuration on an emulator or device.
 
+## Testing
+- Execute unit tests locally with the bundled Gradle wrapper:
+  ```bash
+  ./gradlew testDebug
+  ```
+- As feature modules are added, expand coverage with instrumentation tests using `./gradlew connectedAndroidTest` on an emulator/device.
+
 ## Next Steps
 - Implement navigation scaffolding for Explore, My Trips, Messages, and Profile tabs.
 - Hook `VectorRepository` into the FastAPI backend using Retrofit + Moshi models.

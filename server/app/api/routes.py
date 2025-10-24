@@ -6,18 +6,28 @@ from datetime import datetime, timedelta
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
+from ..db import get_session
 from ..models.domain import (
     HookupRequest,
+    Location,
     MatchScore,
     RideIntent,
     UserProfile,
     Vector,
     VectorSegment,
-    Location,
 )
-from ..services.matching import STORE, find_best_matches, score_match
+from ..models.orm import (
+    HookupRequestORM,
+    RideIntentORM,
+    UserORM,
+    VectorORM,
+    VectorSegmentORM,
+    vectors_to_domain,
+)
+from ..services.matching import find_best_matches, score_match
 
 router = APIRouter()
 
@@ -28,27 +38,37 @@ def healthcheck() -> dict[str, str]:
 
 
 @router.post("/users", status_code=status.HTTP_201_CREATED, response_model=UserProfile)
-def create_user(profile: UserProfile) -> UserProfile:
-    STORE.users[profile.id] = profile.to_dict()
-    return profile
+def create_user(profile: UserProfile, db: Session = Depends(get_session)) -> UserProfile:
+    user = UserORM.from_domain(profile)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user.to_domain()
 
 
 @router.get("/users", response_model=List[UserProfile])
-def list_users() -> List[UserProfile]:
-    return [UserProfile.from_dict(stored) for stored in STORE.users.values()]
+def list_users(db: Session = Depends(get_session)) -> List[UserProfile]:
+    users = db.query(UserORM).all()
+    return [user.to_domain() for user in users]
 
 
 @router.post("/vectors", status_code=status.HTTP_201_CREATED, response_model=Vector)
-def create_vector(vector: Vector) -> Vector:
-    if vector.driver_id not in STORE.users:
+def create_vector(vector: Vector, db: Session = Depends(get_session)) -> Vector:
+    driver = db.get(UserORM, str(vector.driver_id))
+    if not driver:
         raise HTTPException(status_code=404, detail="Driver not found")
-    STORE.vectors[vector.id] = vector
-    return vector
+
+    orm_vector = VectorORM.from_domain(vector)
+    db.add(orm_vector)
+    db.commit()
+    db.refresh(orm_vector)
+    return orm_vector.to_domain()
 
 
 @router.get("/vectors", response_model=List[Vector])
-def list_vectors() -> List[Vector]:
-    return list(STORE.vectors.values())
+def list_vectors(db: Session = Depends(get_session)) -> List[Vector]:
+    vectors = db.query(VectorORM).all()
+    return vectors_to_domain(vectors)
 
 
 @router.post(
@@ -56,24 +76,36 @@ def list_vectors() -> List[Vector]:
     status_code=status.HTTP_201_CREATED,
     response_model=RideIntent,
 )
-def create_ride_intent(intent: RideIntent) -> RideIntent:
-    if intent.rider_id not in STORE.users:
+def create_ride_intent(intent: RideIntent, db: Session = Depends(get_session)) -> RideIntent:
+    rider = db.get(UserORM, str(intent.rider_id))
+    if not rider:
         raise HTTPException(status_code=404, detail="Rider not found")
-    STORE.ride_intents[intent.id] = intent
-    return intent
+
+    orm_intent = RideIntentORM.from_domain(intent)
+    db.add(orm_intent)
+    db.commit()
+    db.refresh(orm_intent)
+    return orm_intent.to_domain()
 
 
 @router.get("/ride-intents", response_model=List[RideIntent])
-def list_ride_intents() -> List[RideIntent]:
-    return list(STORE.ride_intents.values())
+def list_ride_intents(db: Session = Depends(get_session)) -> List[RideIntent]:
+    intents = db.query(RideIntentORM).all()
+    return [intent.to_domain() for intent in intents]
 
 
 @router.post("/match", response_model=List[MatchScore])
-def match_vectors(ride_intent_id: UUID, limit: int = 5) -> List[MatchScore]:
-    intent = STORE.ride_intents.get(ride_intent_id)
-    if not intent:
+def match_vectors(
+    ride_intent_id: UUID, limit: int = 5, db: Session = Depends(get_session)
+) -> List[MatchScore]:
+    intent_record = db.get(RideIntentORM, str(ride_intent_id))
+    if not intent_record:
         raise HTTPException(status_code=404, detail="Ride intent not found")
-    matches = find_best_matches(STORE.vectors.values(), intent, limit=limit)
+
+    intent = intent_record.to_domain()
+    vectors = db.query(VectorORM).all()
+    vector_domains = vectors_to_domain(vectors)
+    matches = find_best_matches(vector_domains, intent, limit=limit)
     return matches
 
 
@@ -82,44 +114,60 @@ def match_vectors(ride_intent_id: UUID, limit: int = 5) -> List[MatchScore]:
     status_code=status.HTTP_201_CREATED,
     response_model=HookupRequest,
 )
-def create_hookup(request: HookupRequest) -> HookupRequest:
-    if request.vector_id not in STORE.vectors:
+def create_hookup(
+    request: HookupRequest, db: Session = Depends(get_session)
+) -> HookupRequest:
+    vector = db.get(VectorORM, str(request.vector_id))
+    if not vector:
         raise HTTPException(status_code=404, detail="Vector not found")
-    if request.ride_intent_id not in STORE.ride_intents:
+    intent = db.get(RideIntentORM, str(request.ride_intent_id))
+    if not intent:
         raise HTTPException(status_code=404, detail="Ride intent not found")
-    STORE.hookups[request.id] = request.to_dict()
-    return request
+
+    orm_hookup = HookupRequestORM.from_domain(request)
+    db.add(orm_hookup)
+    db.commit()
+    db.refresh(orm_hookup)
+    return orm_hookup.to_domain()
 
 
 @router.post("/hookups/{hookup_id}/confirm", response_model=HookupRequest)
-def confirm_hookup(hookup_id: UUID) -> HookupRequest:
-    data = STORE.hookups.get(hookup_id)
-    if not data:
+def confirm_hookup(
+    hookup_id: UUID, db: Session = Depends(get_session)
+) -> HookupRequest:
+    record = db.get(HookupRequestORM, str(hookup_id))
+    if not record:
         raise HTTPException(status_code=404, detail="Hook-up request not found")
-    data["status"] = "accepted"
-    request = HookupRequest.from_dict(data)
-    STORE.hookups[hookup_id] = request.to_dict()
-    return request
+    record.status = "accepted"
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return record.to_domain()
 
 
 @router.post("/reset", status_code=status.HTTP_204_NO_CONTENT)
-def reset_store() -> None:
+def reset_store(db: Session = Depends(get_session)) -> None:
     """Utility endpoint for testing."""
 
-    STORE.reset()
+    db.query(HookupRequestORM).delete()
+    db.query(RideIntentORM).delete()
+    db.query(VectorSegmentORM).delete()
+    db.query(VectorORM).delete()
+    db.query(UserORM).delete()
+    db.commit()
 
 
 # Convenience data seeding for manual experimentation
 @router.post("/seed", response_model=dict)
 def seed_demo_data() -> dict:
-    if STORE.users:
-        return {"message": "Store already seeded", "users": len(STORE.users)}
+    if db.query(UserORM).count():
+        return {"message": "Store already seeded", "users": db.query(UserORM).count()}
 
     driver = UserProfile(full_name="Taylor Driver", is_driver=True)
     rider = UserProfile(full_name="Riley Rider")
 
-    STORE.users[driver.id] = driver.to_dict()
-    STORE.users[rider.id] = rider.to_dict()
+    db.add_all([UserORM.from_domain(driver), UserORM.from_domain(rider)])
+    db.commit()
 
     segment = VectorSegment(
         start=Location(latitude=30.2672, longitude=-97.7431),
@@ -136,12 +184,14 @@ def seed_demo_data() -> dict:
         rider_id=rider.id,
         earliest_start=datetime.utcnow(),
         latest_arrival=datetime.utcnow() + timedelta(hours=1),
-        desired_start={"latitude": 30.27, "longitude": -97.74},
-        desired_end={"latitude": 30.30, "longitude": -97.75},
+        desired_start=Location(latitude=30.27, longitude=-97.74),
+        desired_end=Location(latitude=30.30, longitude=-97.75),
     )
 
-    STORE.vectors[vector.id] = vector
-    STORE.ride_intents[intent.id] = intent
+    orm_vector = VectorORM.from_domain(vector)
+    orm_intent = RideIntentORM.from_domain(intent)
+    db.add_all([orm_vector, orm_intent])
+    db.commit()
 
     match = score_match(vector, intent)
     return {

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Iterable, List
-from uuid import UUID
 
 from ..models.domain import MatchScore, RideIntent, Vector
 
@@ -74,22 +73,3 @@ def find_best_matches(
     scores = [score_match(vector, intent) for vector in vector_pool]
     scores.sort(key=lambda match: match.score, reverse=True)
     return scores[:limit]
-
-
-class InMemoryStore:
-    """Simple in-memory data store supporting MVP experimentation."""
-
-    def __init__(self) -> None:
-        self.users: dict[UUID, dict] = {}
-        self.vectors: dict[UUID, Vector] = {}
-        self.ride_intents: dict[UUID, RideIntent] = {}
-        self.hookups: dict[UUID, dict] = {}
-
-    def reset(self) -> None:
-        self.users.clear()
-        self.vectors.clear()
-        self.ride_intents.clear()
-        self.hookups.clear()
-
-
-STORE = InMemoryStore()

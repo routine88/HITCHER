@@ -135,7 +135,7 @@ Hitcher is a crowdsourced, location-aware platform that enables users to efficie
 ## 9. Technical Architecture Overview
 ### 9.1 System Components
 - **Mobile Client (Android/Kotlin):** Native app managing onboarding, vector workflows, chat, and background location services for drivers.
-- **Backend Service (FastAPI/Python):** RESTful API handling authentication (MVP token-based), vector lifecycle, matching heuristics, chat message relay, and analytics ingestion.
+- **Backend Service (FastAPI/Python):** RESTful API handling authentication (MVP token-based), vector lifecycle, matching heuristics, chat message relay, and analytics ingestion. The current development build uses SQLite persistence via SQLAlchemy with a migration path to PostGIS.
 - **Database:** PostgreSQL with PostGIS extension (planned) accessed via SQLAlchemy models and Alembic migrations.
 - **Real-Time Messaging:** WebSocket endpoints for chat and live location streaming targeted for Phase 1; Firebase Cloud Messaging provides push delivery in MVP.
 - **External Services:** Mapbox APIs for maps/geocoding, Persona for identity verification, Twilio for SMS fallbacks.
@@ -155,6 +155,11 @@ Hitcher is a crowdsourced, location-aware platform that enables users to efficie
 - Secrets managed with cloud secret manager, rotated quarterly and restricted via IAM policies.
 - Privacy impact assessments executed before integrating third-party reputation data sources.
 - Data retention policy: anonymize personal trip/location data after 180 days while retaining aggregated insights.
+
+### 9.5 Developer Tooling & Local Testing
+- Provide repository-level documentation that links to backend (`pytest`, local uvicorn server) and Android (`./gradlew testDebug`, emulator run) workflows so contributors can validate changes without custom scripts.
+- Maintain smoke test collections (e.g., REST client recipes/Postman or `scripts/seed_and_reset.py`) to exercise core vector and hook-up flows locally before cutting releases.
+- Add continuous integration jobs that execute the same local commands to ensure parity between developer machines and automated checks.
 
 ## 10. Design & Research Plan
 - Conduct moderated usability testing on Explore and Hook-Up flows with diverse participants.

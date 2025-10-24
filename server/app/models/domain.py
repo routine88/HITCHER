@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, field
 from datetime import datetime, timedelta
 from typing import Dict, List
 from uuid import UUID, uuid4
+
+
+from pydantic.dataclasses import dataclass
 
 
 @dataclass
